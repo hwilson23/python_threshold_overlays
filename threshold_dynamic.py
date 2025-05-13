@@ -469,7 +469,7 @@ class ImageThresholdAdjuster(QMainWindow):
         self.update_min_threshold(idx, min_val, controls['min_label'])
         self.update_max_threshold(idx, max_val, controls['max_label'])
     '''
-    
+
     def toggle_range(self, range_idx, state):
         self.threshold_ranges[range_idx].enabled = (state == Qt.Checked)
         
@@ -687,19 +687,21 @@ class ImageThresholdAdjuster(QMainWindow):
         bytes_per_line = 3 * w
         q_img = QImage(current['processed'].data, w, h, bytes_per_line, QImage.Format_RGB888)
         self.pixmap1 = QPixmap.fromImage(q_img)
-        if w or h > 2000:
+        if w > 2000 or h > 2000:
             pixmap1scaled = self.pixmap1.scaled(512,512,Qt.KeepAspectRatio, Qt.SmoothTransformation)
-            
+            self.image_display1.setPixmap(pixmap1scaled)
+        else:
+            self.image_display1.setPixmap(self.pixmap1)
 
         #make 16 bit grayscale
         grayim = np.array(current['original'].data, dtype=np.uint8)
         q_img2 = QImage(grayim,w,h,w, QImage.Format_Grayscale8)
         self.pixmap2 = QPixmap.fromImage(q_img2)
-        if w or h > 2000:
+        if w >2000 or h > 2000:
             pixmap2scaled = self.pixmap2.scaled(512,512,Qt.KeepAspectRatio, Qt.SmoothTransformation)
-        # Display image
-        self.image_display1.setPixmap(pixmap1scaled)
-        self.image_display2.setPixmap(pixmap2scaled)
+            self.image_display2.setPixmap(pixmap2scaled)
+        else:
+            self.image_display2.setPixmap(self.pixmap2)
         
         self.image_display1.setAlignment(Qt.AlignCenter)
         self.image_display2.setAlignment(Qt.AlignCenter)
