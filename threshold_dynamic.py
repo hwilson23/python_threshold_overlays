@@ -9,7 +9,7 @@ from matplotlib.figure import Figure
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QLabel, QPushButton, QFileDialog, 
                             QSlider, QScrollArea, QGroupBox, QCheckBox, QComboBox, QDoubleSpinBox,
-                            QColorDialog,QSizePolicy)
+                            QColorDialog,QSizePolicy, QMessageBox)
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QImage, QPixmap, QColor
 from tifffile import tifffile as tiff
@@ -46,12 +46,14 @@ class HistogramCanvas(FigureCanvas):
             #hist, bins = np.histogram(~np.isnan(img.flatten()), bins,density=True)
             nanpos = np.isnan(img.flatten())
             #hist, bins,_ = matplotlib.pyplot.hist(img.flatten()[~nanpos],histtype='bar',facecolor='gray')
-            hist, bins = np.histogram(img.flatten()[~nanpos],density=True)
+            hist, bins = np.histogram(img.flatten()[~nanpos],bins)
                         
-            self.axes.bar(bins[:-1], hist, width=bins[1]-bins[0], color='gray', edgecolor = 'black')
+            #self.axes.bar(bins[:-1], hist, width=bins[1]-bins[0], color='gray', edgecolor = 'black')
+            bin_centers = (bins[:-1]+bins[1:])/2
+            self.axes.bar(bin_centers, hist, width=bins[1]-bins[0], color='gray', edgecolor = 'black')
             self.axes.set_title('REFERENCE Image Histogram')
             self.axes.set_xlabel('Pixel Value')
-            self.axes.set_ylabel('Frequency')
+            self.axes.set_ylabel('Count')
             
             for t_range in self.thresholds:
                 if t_range.enabled:
@@ -59,6 +61,7 @@ class HistogramCanvas(FigureCanvas):
                     color = f'#{r:02x}{g:02x}{b:02x}'
                     self.axes.axvline(x=t_range.min_val, color=color, linestyle='--')
                     self.axes.axvline(x=t_range.max_val, color=color, linestyle='-')
+                    self.axes.set_xlim(xmax=t_range.max_val)
         
         self.fig.tight_layout()
         self.draw()
@@ -310,7 +313,7 @@ class ImageThresholdAdjuster(QMainWindow):
             return
         
         self.images = []
-        
+        first_image_shape = None
         # Load all images
         for file_path in file_paths:
             try:
@@ -320,6 +323,20 @@ class ImageThresholdAdjuster(QMainWindow):
                     self.statusBar().showMessage(f"Failed to load {file_path}")
                     continue
                 
+                # Check for consistent shape
+                if first_image_shape is None:
+                    first_image_shape = img.shape
+                elif img.shape != first_image_shape:
+                    filename = file_path.split('/')[-1]
+                    if '\\' in file_path:
+                        filename = file_path.split('\\')[-1]
+                    QMessageBox.warning(
+                        self,
+                        "Image Size Mismatch",
+                        f"Image '{filename}' has size {img.shape}, but expected {first_image_shape}. It will not be loaded."
+                    )
+                    continue  # Skip this mismatched image
+
                 # Find min and max values
                 img_min = np.nanmin(img)
                 if np.isnan(img_min):
@@ -663,7 +680,7 @@ class ImageThresholdAdjuster(QMainWindow):
         self.image_display2.setAlignment(Qt.AlignCenter)
         
         # Update status bar
-        img_info = f"Image: {current['filename']} ({w}x{h})"
+        img_info = f"Image: {current['filename']} ({w}x{h}), total of {len(self.images)} image(s) loaded."
         self.statusBar().showMessage(img_info)
     
     def show_next_image(self):
