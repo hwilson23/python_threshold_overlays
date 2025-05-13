@@ -728,7 +728,6 @@ class ImageThresholdAdjuster(QMainWindow):
         self.display_current_image()
         self.update_histogram()
 
-     
 
 if __name__ == "__main__":
     
