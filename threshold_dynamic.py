@@ -160,7 +160,7 @@ class ImageThresholdAdjuster(QMainWindow):
         # Image display area
         #self.image_scroll_area1 = QScrollArea()
         #self.image_scroll_area1 = QScrollArea()
-        self.image_scroll_area1 = QLabel("Load a .tif or .tiff image to begin")
+        self.image_scroll_area1 = QLabel("Load a .tif or .tiff image to begin (may be slow with large images)")
         self.image_scroll_area2 = QLabel()
         self.image_scroll_area1.setScaledContents(True)
         self.image_scroll_area1.setAlignment(Qt.AlignCenter)
@@ -168,7 +168,7 @@ class ImageThresholdAdjuster(QMainWindow):
         self.image_scroll_area2.setScaledContents(True)
         self.image_scroll_area2.setAlignment(Qt.AlignCenter)
         
-        self.image_display1 = QLabel("Load a .tif or .tiff image to begin")
+        self.image_display1 = QLabel()
         self.image_display1.setAlignment(Qt.AlignCenter)
         self.image_display2 = QLabel()
         self.image_display2.setAlignment(Qt.AlignCenter)
@@ -241,7 +241,12 @@ class ImageThresholdAdjuster(QMainWindow):
         enable_checkbox.setChecked(threshold_range.enabled)
         enable_checkbox.stateChanged.connect(lambda state, idx=idx: self.toggle_range(idx, state))
         group_layout.addWidget(enable_checkbox)
-        
+        '''
+        #apply button
+        apply_button = QPushButton("Apply Thresholds")
+        apply_button.clicked.connect(lambda _, idx=idx: self.apply_threshold_changes(idx))
+        group_layout.addWidget(apply_button)
+        '''        
         # Color picker button
         color_button = QPushButton("Select Color")
         color_button.setStyleSheet(f"background-color: rgb{threshold_range.color}")
@@ -254,6 +259,7 @@ class ImageThresholdAdjuster(QMainWindow):
         min_label = QLabel(f"Min: {threshold_range.min_val}")
         #min_slider = QSlider(Qt.Horizontal)
         min_spinbox = QDoubleSpinBox()
+        min_spinbox.setKeyboardTracking(False)
         min_spinbox.setRange(self.intensity_min,self.intensity_max)
         min_spinbox.setSingleStep(self.float_step)
         min_spinbox.setDecimals(2)
@@ -274,6 +280,7 @@ class ImageThresholdAdjuster(QMainWindow):
         max_label = QLabel(f"Max: {threshold_range.max_val}")
         #max_slider = QSlider(Qt.Horizontal)
         max_spinbox = QDoubleSpinBox()
+        max_spinbox.setKeyboardTracking(False)
         max_spinbox.setRange(self.intensity_min,self.intensity_max)
         max_spinbox.setSingleStep(self.float_step)
         max_spinbox.setDecimals(2)
@@ -444,6 +451,24 @@ class ImageThresholdAdjuster(QMainWindow):
             self.process_current_image()
             self.display_current_image()
             self.update_histogram()
+    '''
+    def apply_threshold_changes(self, idx):
+        controls = self.range_controls[idx]
+        
+        min_val = controls['min_spinbox'].value()
+        max_val = controls['max_spinbox'].value()
+
+        # Ensure ordering
+        if min_val > max_val:
+            max_val = min_val
+            controls['max_spinbox'].setValue(max_val)
+
+        controls['min_label'].setText(f"Min: {min_val:.2f}")
+        controls['max_label'].setText(f"Max: {max_val:.2f}")
+        
+        self.update_min_threshold(idx, min_val, controls['min_label'])
+        self.update_max_threshold(idx, max_val, controls['max_label'])
+    '''
     
     def toggle_range(self, range_idx, state):
         self.threshold_ranges[range_idx].enabled = (state == Qt.Checked)
