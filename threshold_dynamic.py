@@ -427,6 +427,7 @@ class ImageThresholdAdjuster(QMainWindow):
                     'path': file_path,
                     'filename': filename,
                     'original': img,
+                    'original_mod':None,
                     'processed': None,
                     'min_val': img_min,
                     'max_val': img_max,
@@ -702,7 +703,10 @@ class ImageThresholdAdjuster(QMainWindow):
         current['display_min'] = display_min
         current['display_max'] = display_max
         
-        # Re-process the image with new display range
+        #clip original
+        current['original_mod']= np.clip(img, display_min, display_max)
+        current['original_mod'] = ((current['original_mod'] - display_min) / (display_max - display_min) * 255).astype(np.uint8)
+        # Re-process the images with new display range
         current['processed'] = self.process_image_with_custom_range(current)
         
         # Update the display
@@ -756,7 +760,7 @@ class ImageThresholdAdjuster(QMainWindow):
         # Convert the normalized grayscale to RGB for display
         img_rgb = cv2.cvtColor(norm_img, cv2.COLOR_GRAY2RGB)
         
-        # Blend overlay with RGB image (opacity)
+        #TODO - better blending?  Blend overlay with RGB image (opacity)
         alpha = 0.2
         blended = np.zeros_like(img_rgb)
         cv2.addWeighted(img_rgb, 1 - alpha, overlay, alpha, 0, blended)
@@ -857,6 +861,7 @@ class ImageThresholdAdjuster(QMainWindow):
         # Convert processed image to QImage for display
         h, w, c = current['processed'].shape
         bytes_per_line = 3 * w
+        #rgb888 is 24 bit
         q_img = QImage(current['processed'].data, w, h, bytes_per_line, QImage.Format_RGB888)
         self.pixmap1 = QPixmap.fromImage(q_img)
         if w > 2000 or h > 2000:
@@ -865,8 +870,14 @@ class ImageThresholdAdjuster(QMainWindow):
         else:
             self.image_display1.setPixmap(self.pixmap1)
 
-        #make 16 bit grayscale?
-        grayim = np.array(current['original'].data, dtype=np.uint8)
+        if current['original_mod'] is None:
+            graydata_scaled = np.array(current['original'].data)
+        else:
+            graydata_scaled = np.array(current['original_mod'].data)
+
+        #TODO make 16/32 bit grayscale/rgb?
+        graydata_scaled = graydata_scaled*(255/graydata_scaled.max())
+        grayim = np.array(graydata_scaled, dtype=np.uint8)
         q_img2 = QImage(grayim,w,h,w, QImage.Format_Grayscale8)
         self.pixmap2 = QPixmap.fromImage(q_img2)
         if w >2000 or h > 2000:
