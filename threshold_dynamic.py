@@ -168,14 +168,42 @@ class ImageThresholdAdjuster(QMainWindow):
         self.image_scroll_area2.setScaledContents(True)
         self.image_scroll_area2.setAlignment(Qt.AlignCenter)
         
-        self.image_display1 = QLabel()
+        self.image_display1 = QLabel("Load a .tif or .tiff image to begin (may be slow with large images)")
         self.image_display1.setAlignment(Qt.AlignCenter)
         self.image_display2 = QLabel()
         self.image_display2.setAlignment(Qt.AlignCenter)
         #self.image_scroll_area1.setWidget(self.image_display1)
         #self.image_scroll_area2.setWidget(self.image_display2)
         
-    
+        display_range_group = QGroupBox("Display Range")
+        display_range_layout = QHBoxLayout()
+
+        min_range_label = QLabel("Min:")
+        self.min_range_spinbox = QDoubleSpinBox()
+        self.min_range_spinbox.setRange(-1000000, 1000000)  # Wide range to accommodate various image types
+        self.min_range_spinbox.setDecimals(2)
+        self.min_range_spinbox.setKeyboardTracking(False)
+        self.min_range_spinbox.valueChanged.connect(self.on_display_range_changed)
+
+        max_range_label = QLabel("Max:")
+        self.max_range_spinbox = QDoubleSpinBox()
+        self.max_range_spinbox.setRange(-1000000, 1000000)
+        self.max_range_spinbox.setDecimals(2)
+        self.max_range_spinbox.setKeyboardTracking(False)
+        self.max_range_spinbox.valueChanged.connect(self.on_display_range_changed)
+
+        reset_range_button = QPushButton("Reset Values")
+        reset_range_button.clicked.connect(self.reset_display_range)
+
+        display_range_layout.addWidget(min_range_label)
+        display_range_layout.addWidget(self.min_range_spinbox)
+        display_range_layout.addWidget(max_range_label)
+        display_range_layout.addWidget(self.max_range_spinbox)
+        display_range_layout.addWidget(reset_range_button)
+
+        display_range_group.setLayout(display_range_layout)
+        top_controls.addWidget(display_range_group)
+            
         
         # Create histogram canvas
         self.histogram_canvas = HistogramCanvas()
@@ -210,6 +238,43 @@ class ImageThresholdAdjuster(QMainWindow):
         self.statusBar().showMessage("Ready")
 
     
+    def on_display_range_changed(self):
+        """Called when user changes min/max display range values"""
+        min_val = self.min_range_spinbox.value()
+        max_val = self.max_range_spinbox.value()
+        
+        # Ensure min <= max
+        if min_val > max_val:
+            if self.sender() is self.min_range_spinbox:
+                self.max_range_spinbox.setValue(min_val)
+                max_val = min_val
+            else:
+                self.min_range_spinbox.setValue(max_val)
+                min_val = max_val
+        
+        self.set_display_range(min_val, max_val)
+
+    def reset_display_range(self):
+        """Reset display range to actual min/max values of current image"""
+        if not self.images or self.current_image_index < 0:
+            return
+        
+        img = self.images[self.current_image_index]['original']
+        img_min = np.nanmin(img)
+        if np.isnan(img_min):
+            img_min = 0
+        img_max = np.nanmax(img)
+        
+        # Update spinboxes (will trigger on_display_range_changed)
+        self.min_range_spinbox.blockSignals(True)
+        self.max_range_spinbox.blockSignals(True)
+        self.min_range_spinbox.setValue(img_min)
+        self.max_range_spinbox.setValue(img_max)
+        self.min_range_spinbox.blockSignals(False)
+        self.max_range_spinbox.blockSignals(False)
+    
+        # Apply the range
+        self.set_display_range(img_min, img_max)
 
     def create_threshold_group(self, idx, threshold_range):
         def on_slider_change(value):
@@ -610,7 +675,94 @@ class ImageThresholdAdjuster(QMainWindow):
             self.histogram_canvas.set_thresholds(self.threshold_ranges)
             # Plot the histogram
             self.histogram_canvas.plot_histogram(ref_img['original'])
-    
+    def set_display_range(self, display_min=None, display_max=None):
+        """
+        Adjust the contrast of the current image by setting custom min/max display values.
+        
+        Args:
+            display_min (float): Minimum intensity value for display range mapping
+            display_max (float): Maximum intensity value for display range mapping
+        """
+        if not self.images or self.current_image_index < 0:
+            return
+        
+        current = self.images[self.current_image_index]
+        img = current['original'].copy()
+        
+        # If no values provided, use the actual min/max
+        if display_min is None:
+            display_min = np.nanmin(img)
+            if np.isnan(display_min):
+                display_min = 0
+        
+        if display_max is None:
+            display_max = np.nanmax(img)
+        
+        # Store the display range values
+        current['display_min'] = display_min
+        current['display_max'] = display_max
+        
+        # Re-process the image with new display range
+        current['processed'] = self.process_image_with_custom_range(current)
+        
+        # Update the display
+        self.display_current_image()
+        
+        # Update status bar with range info
+        current_filename = current['filename']
+        img_h, img_w = img.shape
+        range_info = f"Image: {current_filename} ({img_w}x{img_h}), Display Range: [{display_min:.2f}, {display_max:.2f}]"
+        self.statusBar().showMessage(range_info)
+
+    def process_image_with_custom_range(self, img_data):
+        """Process the image with custom min/max display range and apply overlays"""
+        # Get original image
+        img = img_data['original'].copy()
+        
+        # Get display range (use stored values or actual min/max)
+        display_min = img_data.get('display_min', np.nanmin(img))
+        display_max = img_data.get('display_max', np.nanmax(img))
+        
+        # Create an RGB overlay image for the colored thresholds
+        h, w = img.shape
+        overlay = np.zeros((h, w, 3), dtype=np.uint8)
+        
+        # Create a mask to keep track of overlapping regions for proper blending
+        mask_applied = np.zeros((h, w), dtype=np.uint8)
+        
+        # Use masks from reference image
+        if self.reference_image_index >= 0:
+            ref_img = self.images[self.reference_image_index]
+            
+            # Apply each mask with its color
+            for mask_data in ref_img['masks']:
+                if not mask_data['enabled']:
+                    continue
+                
+                # Only apply color to pixels that haven't been colored yet
+                unused_pixels = ~mask_applied.astype(bool)
+                new_mask = mask_data['mask'].astype(bool) & unused_pixels
+                
+                # Apply color to the overlay
+                overlay[new_mask] = mask_data['color']
+                
+                # Update mask of applied pixels
+                mask_applied[new_mask] = 1
+        
+        # Create a normalized version using custom display range
+        norm_img = np.clip(img, display_min, display_max)
+        norm_img = ((norm_img - display_min) / (display_max - display_min) * 255).astype(np.uint8)
+        
+        # Convert the normalized grayscale to RGB for display
+        img_rgb = cv2.cvtColor(norm_img, cv2.COLOR_GRAY2RGB)
+        
+        # Blend overlay with RGB image (opacity)
+        alpha = 0.2
+        blended = np.zeros_like(img_rgb)
+        cv2.addWeighted(img_rgb, 1 - alpha, overlay, alpha, 0, blended)
+        
+        return blended
+
     def process_image(self, img_data):
         """Process the image by applying colored overlays based on reference masks"""
         # Get the original image
@@ -671,17 +823,37 @@ class ImageThresholdAdjuster(QMainWindow):
             return
         
         current = self.images[self.current_image_index]
-        current['processed'] = self.process_image(current)
-    
+        current['processed'] = self.process_image_with_custom_range(current)    
+
     def display_current_image(self):
         if not self.images or self.current_image_index < 0:
             return
-        
+        '''
         current = self.images[self.current_image_index]
         
         if current['processed'] is None:
             current['processed'] = self.process_image(current)
+        '''
+
+        current = self.images[self.current_image_index]
         
+        # Update display range spinboxes with current image values
+        display_min = current.get('display_min', np.nanmin(current['original']))
+        display_max = current.get('display_max', np.nanmax(current['original']))
+        
+        self.min_range_spinbox.blockSignals(True)
+        self.max_range_spinbox.blockSignals(True)
+        self.min_range_spinbox.setValue(display_min)
+        self.max_range_spinbox.setValue(display_max)
+        self.min_range_spinbox.blockSignals(False)
+        self.max_range_spinbox.blockSignals(False)
+    
+        # Process image if needed
+        if current['processed'] is None:
+            current['processed'] = self.process_image_with_custom_range(current)
+    
+        # Rest of your display code...
+        # [existing display code]
         # Convert processed image to QImage for display
         h, w, c = current['processed'].shape
         bytes_per_line = 3 * w
@@ -693,7 +865,7 @@ class ImageThresholdAdjuster(QMainWindow):
         else:
             self.image_display1.setPixmap(self.pixmap1)
 
-        #make 16 bit grayscale
+        #make 16 bit grayscale?
         grayim = np.array(current['original'].data, dtype=np.uint8)
         q_img2 = QImage(grayim,w,h,w, QImage.Format_Grayscale8)
         self.pixmap2 = QPixmap.fromImage(q_img2)
@@ -709,7 +881,7 @@ class ImageThresholdAdjuster(QMainWindow):
         # Update status bar
         img_info = f"Image: {current['filename']} ({w}x{h}), total of {len(self.images)} image(s) loaded."
         self.statusBar().showMessage(img_info)
-    
+
     def show_next_image(self):
         if not self.images:
             return
