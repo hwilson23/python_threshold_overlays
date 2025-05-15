@@ -112,6 +112,11 @@ class ImageThresholdAdjuster(QMainWindow):
         load_button.clicked.connect(self.load_images)
         top_controls.addWidget(load_button)
         
+        #save image button
+        save_button = QPushButton("Save Image")
+        save_button.clicked.connect(self.save_images)
+        top_controls.addWidget(save_button)
+
         # Reference image selection
         reference_layout = QHBoxLayout()
         reference_label = QLabel("Reference Image:")
@@ -376,6 +381,12 @@ class ImageThresholdAdjuster(QMainWindow):
         
         return group
     
+    def save_images(self):
+        file_name, _ = QFileDialog.getSaveFileName(self,'Save File', '','All Files (*)')
+        if file_name:
+            current = self.images[self.current_image_index]
+            tiff.imwrite(file_name, self.process_image_with_custom_range(current))
+
     def load_images(self):
         file_paths, _ = QFileDialog.getOpenFileNames(
             self, "Open Image Files", "", "Image Files (*.tif *.tiff)"
@@ -414,6 +425,7 @@ class ImageThresholdAdjuster(QMainWindow):
                 if np.isnan(img_min):
                     img_min = 0
                     print('img_min reset to 0 since min was nan')
+                img = np.nan_to_num(img, posinf = float('NaN'))
                 img_max = np.nanmax(img)
                 print(f'img_max = {img_max}')
                 
