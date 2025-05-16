@@ -4,6 +4,7 @@ import cv2
 import matplotlib
 import matplotlib.pyplot
 matplotlib.use('Qt5Agg')
+import os
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.figure import Figure
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
@@ -386,6 +387,17 @@ class ImageThresholdAdjuster(QMainWindow):
         if file_name:
             current = self.images[self.current_image_index]
             tiff.imwrite(file_name, self.process_image_with_custom_range(current))
+            print(f'Saved RGB Image to: {file_name}')
+            ref_img = self.images[self.reference_image_index]
+            i=1
+            for mask_data in ref_img['masks']:
+                if not mask_data['enabled']:
+                    continue
+                ht = os.path.split(file_name)
+                tiff.imwrite(f'{ht[0]}//mask{i}_{ht[1]}', mask_data['mask'])
+                
+                print(f'Saved mask image to: {ht[0]}/mask{i}_{ht[1]}')
+                i = i+1
 
     def load_images(self):
         file_paths, _ = QFileDialog.getOpenFileNames(
