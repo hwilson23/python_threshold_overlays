@@ -634,8 +634,8 @@ class ImageThresholdAdjuster(QMainWindow):
         group = self.create_threshold_group(new_idx, new_range)
         
         # Add to layout
-        #threshold_container = self.findChild(QScrollArea).widget()
-        threshold_container = self.findChild(QLabel).widget()
+        threshold_container = self.findChild(QScrollArea).widget()
+        #threshold_container = self.findChild(QLabel).widget()
         threshold_container.layout().addWidget(group)
         
         # Update reference masks with new range
