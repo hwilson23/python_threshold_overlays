@@ -6,6 +6,7 @@ import matplotlib.pyplot
 matplotlib.use('Qt5Agg')
 import os
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
 from matplotlib.figure import Figure
 from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout, 
                             QHBoxLayout, QLabel, QPushButton, QFileDialog, 
@@ -71,12 +72,51 @@ class HistogramCanvas(FigureCanvas):
     def set_thresholds(self, thresholds):
         self.thresholds = thresholds
 
+class MatplotlibImageWidget(QWidget):
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.figure = Figure(figsize=(10, 5))
+        self.canvas = FigureCanvas(self.figure)
+        
+        # Add navigation toolbar for zoom, pan, etc.
+        self.toolbar = NavigationToolbar2QT(self.canvas, self)
+        
+        # Create layout
+        layout = QVBoxLayout()
+        layout.addWidget(self.toolbar)
+        layout.addWidget(self.canvas)
+        self.setLayout(layout)
+        
+        # Create subplots
+        self.ax1 = self.figure.add_subplot(121)
+        self.ax2 = self.figure.add_subplot(122)
+        
+    def update_images(self, rgb_image, grayscale_image, filename, w, h):
+        # Clear previous plots
+        self.ax1.clear()
+        self.ax2.clear()
+        
+        # Display RGB image (left subplot - image_display1 equivalent)
+        self.ax1.imshow(rgb_image)
+        self.ax1.set_title(f'RGB: {filename}')
+        self.ax1.axis('off')
+        
+        # Display grayscale image (right subplot - image_display2 equivalent)
+        self.ax2.imshow(grayscale_image, cmap='gray')
+        self.ax2.set_title(f'Grayscale: {filename} ({w}x{h})')
+        self.ax2.axis('off')
+        
+        # Adjust layout and refresh
+        self.figure.tight_layout()
+        self.canvas.draw()
+    
+    
 
 class ImageThresholdAdjuster(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Multi-Threshold Color Overlay")
-        self.setGeometry(100, 100, 1400, 900)
+        self.setGeometry(100, 100, 100, 900)
                 
         # Image and threshold variables
         self.images = []
@@ -88,18 +128,99 @@ class ImageThresholdAdjuster(QMainWindow):
         
         # Define threshold ranges with different colors
         self.threshold_ranges = [
-            ThresholdRange("Range 1", 0, 0, (255, 0, 0)),    # Red
-            ThresholdRange("Range 2", 0, 0, (0, 255, 0)),    # Green
-            ThresholdRange("Range 3", 0, 0, (0, 0, 255))     # Blue
+            ThresholdRange("Range 1", 0, 0, (107, 255, 15)),    
+            ThresholdRange("Range 2", 0, 0, (41, 173, 136)),    
+            ThresholdRange("Range 3", 0, 0, (0, 118, 0))
+                 
         ]
         
         self.range_controls = []
         self.use_reference_masks = True  # Always use reference masks
         self.histogram_canvas = None
-        
+# Enable zoom and pan
+        self.figure = Figure(figsize=(10,5))
+        self.canvas = FigureCanvas(self.figure)
+        self.canvas.mpl_connect('scroll_event', self.on_scroll)
+
         # Setup UI
         self.setup_ui()
         
+    def display_current_image(self):
+        if not self.images or self.current_image_index < 0:
+            return
+        
+        current = self.images[self.current_image_index]
+    
+        # Update display range spinboxes with current image values
+        display_min = current.get('display_min', np.nanmin(current['original']))
+        display_max = current.get('display_max', np.nanmax(current['original']))
+    
+        self.min_range_spinbox.blockSignals(True)
+        self.max_range_spinbox.blockSignals(True)
+        self.min_range_spinbox.setValue(display_min)
+        self.max_range_spinbox.setValue(display_max)
+        self.min_range_spinbox.blockSignals(False)
+        self.max_range_spinbox.blockSignals(False)
+
+        # Process image if needed
+        if current['processed'] is None:
+            current['processed'] = self.process_image_with_custom_range(current)
+
+        # Get image dimensions
+        h, w, c = current['processed'].shape
+        
+        # Prepare grayscale data
+        if current['original_mod'] is None:
+            graydata_scaled = np.array(current['original'].data)
+        else:
+            graydata_scaled = np.array(current['original_mod'].data)
+        
+        # Normalize grayscale data
+        graydata_scaled = graydata_scaled * (255 / graydata_scaled.max())
+        grayim = np.array(graydata_scaled, dtype=np.uint8)
+        
+        # Update matplotlib widget instead of Qt labels
+        if not hasattr(self, 'image_plot'):
+            # Create matplotlib widget if it doesn't exist
+            self.image_plot = MatplotlibImage()  # Use the version with toolbar
+            # You'll need to add this to your layout where the old image displays were
+            # For example: self.main_layout.addWidget(self.image_plot)
+        
+        # Update the matplotlib display
+        self.image_plot.update_images(
+            current['processed'],  # RGB image for image_display1
+            grayim.reshape(h, w),  # Grayscale image for image_display2
+            current['filename'],
+            w, h
+            )
+    def update_images(self, rgb_image, grayscale_image, filename, w, h):
+        # Clear previous plots
+        self.ax1.clear()
+        self.ax2.clear()
+        
+        # Display RGB image (left subplot - image_display1 equivalent)
+        self.ax1.imshow(rgb_image)
+        self.ax1.set_title(f'RGB: {filename}')
+        self.ax1.axis('off')
+        
+        # Display grayscale image (right subplot - image_display2 equivalent)
+        self.ax2.imshow(grayscale_image, cmap='gray')
+        self.ax2.set_title(f'Grayscale: {filename} ({w}x{h})')
+        self.ax2.axis('off')
+        
+        # Adjust layout and refresh
+        self.figure.tight_layout()
+        self.canvas.draw()
+
+    def on_scroll(self, event):
+        # This enables zoom with mouse wheel
+        # matplotlib already handles this automatically with toolbar
+        pass
+   
+    # Update status bar
+        img_info = f"Image: {current['filename']} ({w}x{h}), total of {len(self.images)} image(s) loaded."
+        self.statusBar().showMessage(img_info)
+
     def setup_ui(self):
         # Main widget and layout
         main_widget = QWidget()
@@ -166,20 +287,24 @@ class ImageThresholdAdjuster(QMainWindow):
         # Image display area
         #self.image_scroll_area1 = QScrollArea()
         #self.image_scroll_area1 = QScrollArea()
-        self.image_scroll_area1 = QLabel("Load a .tif or .tiff image to begin (may be slow with large images)")
-        self.image_scroll_area2 = QLabel()
-        self.image_scroll_area1.setScaledContents(True)
-        self.image_scroll_area1.setAlignment(Qt.AlignCenter)
+        #self.image_scroll_area1 = QLabel("Load a .tif or .tiff image to begin (may be slow with large images)")
+        #self.image_scroll_area2 = QLabel()
+        #self.image_scroll_area1.setScaledContents(True)
+        #self.image_scroll_area1.setAlignment(Qt.AlignCenter)
         #self.image_scroll_area2.setWidgetResizable(True)
-        self.image_scroll_area2.setScaledContents(True)
-        self.image_scroll_area2.setAlignment(Qt.AlignCenter)
+        #self.image_scroll_area2.setScaledContents(True)
+        #self.image_scroll_area2.setAlignment(Qt.AlignCenter)
         
-        self.image_display1 = QLabel("Load a .tif or .tiff image to begin (may be slow with large images)")
-        self.image_display1.setAlignment(Qt.AlignCenter)
-        self.image_display2 = QLabel()
-        self.image_display2.setAlignment(Qt.AlignCenter)
+        #self.image_display1 = QLabel("Load a .tif or .tiff image to begin (may be slow with large images)")
+        #self.image_display1.setAlignment(Qt.AlignCenter)
+        #self.image_display2 = QLabel()
+        #self.image_display2.setAlignment(Qt.AlignCenter)
         #self.image_scroll_area1.setWidget(self.image_display1)
         #self.image_scroll_area2.setWidget(self.image_display2)
+
+        self.image_plot = MatplotlibImageWidget()
+        
+        
         
         display_range_group = QGroupBox("Display Range")
         display_range_layout = QHBoxLayout()
@@ -217,9 +342,9 @@ class ImageThresholdAdjuster(QMainWindow):
         # Create a vertical layout for image and histogram
         image_layout = QVBoxLayout()
         #image_layout.addWidget(self.image_scroll_area1, 3)  # ratio
-        image_layout.addWidget(self.image_display1,3)
+        image_layout.addWidget(self.image_plot,3)
         #image_layout.addWidget(self.image_scroll_area2,3)
-        image_layout.addWidget(self.image_display2,3)
+        #image_layout.addWidget(self.image_display2,3)
         image_layout.addWidget(self.histogram_canvas, 3)
 
         
@@ -853,7 +978,7 @@ class ImageThresholdAdjuster(QMainWindow):
         current = self.images[self.current_image_index]
         current['processed'] = self.process_image_with_custom_range(current)    
 
-    def display_current_image(self):
+    def ignore_display_current_image(self):
         if not self.images or self.current_image_index < 0:
             return
         '''
@@ -880,10 +1005,10 @@ class ImageThresholdAdjuster(QMainWindow):
         if current['processed'] is None:
             current['processed'] = self.process_image_with_custom_range(current)
     
-        # Rest of your display code...
-        # [existing display code]
+        
         # Convert processed image to QImage for display
         h, w, c = current['processed'].shape
+        '''
         bytes_per_line = 3 * w
         #rgb888 is 24 bit
         q_img = QImage(current['processed'].data, w, h, bytes_per_line, QImage.Format_RGB888)
@@ -893,7 +1018,7 @@ class ImageThresholdAdjuster(QMainWindow):
             self.image_display1.setPixmap(pixmap1scaled)
         else:
             self.image_display1.setPixmap(self.pixmap1)
-
+        '''
         if current['original_mod'] is None:
             graydata_scaled = np.array(current['original'].data)
         else:
@@ -902,6 +1027,7 @@ class ImageThresholdAdjuster(QMainWindow):
         #TODO make 16/32 bit grayscale/rgb?
         graydata_scaled = graydata_scaled*(255/graydata_scaled.max())
         grayim = np.array(graydata_scaled, dtype=np.uint8)
+        '''
         q_img2 = QImage(grayim,w,h,w, QImage.Format_Grayscale8)
         self.pixmap2 = QPixmap.fromImage(q_img2)
         if w >2000 or h > 2000:
@@ -912,7 +1038,22 @@ class ImageThresholdAdjuster(QMainWindow):
         
         self.image_display1.setAlignment(Qt.AlignCenter)
         self.image_display2.setAlignment(Qt.AlignCenter)
-        
+        '''
+         # Update matplotlib widget instead of Qt labels
+        if not hasattr(self, 'matplotlib_widget'):
+            # Create matplotlib widget if it doesn't exist
+            #self.matplotlib_widget = MatplotlibImageWidget()
+            # You'll need to add this to your layout where the old image displays were
+            # For example: self.main_layout.addWidget(self.matplotlib_widget)
+            self.image_plot.addWidget(self.matplotlib_widget)
+            #self.image_display2.addWidget(self.matplotlib_widget1)
+        # Update the matplotlib display
+        self.matplotlib_widget.update_images(
+            current['processed'], 
+            grayim.reshape(h, w),  # Reshape for grayscale display
+            current['filename'],
+            w, h
+        )
         # Update status bar
         img_info = f"Image: {current['filename']} ({w}x{h}), total of {len(self.images)} image(s) loaded."
         self.statusBar().showMessage(img_info)
