@@ -5,6 +5,7 @@ import matplotlib
 import matplotlib.pyplot
 matplotlib.use('Qt5Agg')
 import os
+import textwrap
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
 from matplotlib.figure import Figure
@@ -15,6 +16,7 @@ from PyQt5.QtWidgets import (QApplication, QMainWindow, QWidget, QVBoxLayout,
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QImage, QPixmap, QColor
 from tifffile import tifffile as tiff
+
 
 
 class ThresholdRange:
@@ -98,12 +100,15 @@ class MatplotlibImageWidget(QWidget):
         
         # Display RGB image (left subplot - image_display1 equivalent)
         self.ax1.imshow(rgb_image)
-        self.ax1.set_title(f'RGB: {filename}')
+
+        wrapped_filename_rgb = "\n".join(textwrap.wrap(f'RGB: {filename}',width=40))
+        self.ax1.set_title(wrapped_filename_rgb)
         self.ax1.axis('off')
         
         # Display grayscale image (right subplot - image_display2 equivalent)
         self.ax2.imshow(grayscale_image, cmap='gray')
-        self.ax2.set_title(f'Grayscale: {filename} ({w}x{h})')
+        wrapped_filename_gray = "\n".join(textwrap.wrap(f'Grayscale: {filename}',width=40))
+        self.ax2.set_title(f'{wrapped_filename_gray} ({w}x{h})')
         self.ax2.axis('off')
         
         # Adjust layout and refresh
@@ -183,9 +188,7 @@ class ImageThresholdAdjuster(QMainWindow):
         if not hasattr(self, 'image_plot'):
             # Create matplotlib widget if it doesn't exist
             self.image_plot = MatplotlibImage()  # Use the version with toolbar
-            # You'll need to add this to your layout where the old image displays were
-            # For example: self.main_layout.addWidget(self.image_plot)
-        
+            
         # Update the matplotlib display
         self.image_plot.update_images(
             current['processed'],  # RGB image for image_display1
