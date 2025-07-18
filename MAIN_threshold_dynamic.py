@@ -116,7 +116,7 @@ class ImageThresholdAdjuster(QMainWindow):
     def __init__(self):
         super().__init__()
         self.setWindowTitle("Multi-Threshold Color Overlay")
-        self.setGeometry(100, 100, 100, 900)
+        self.setGeometry(100, 100, 300, 900)
                 
         # Image and threshold variables
         self.images = []
@@ -225,93 +225,52 @@ class ImageThresholdAdjuster(QMainWindow):
         # Main widget and layout
         main_widget = QWidget()
         main_layout = QVBoxLayout()
-        
-        # Top controls layout
+        main_widget.setLayout(main_layout)
+        self.setCentralWidget(main_widget)
+
+        # --- Top Controls ---
         top_controls = QHBoxLayout()
-        
-        # Load image button
+
         load_button = QPushButton("Load Images")
         load_button.clicked.connect(self.load_images)
         top_controls.addWidget(load_button)
-        
-        #save image button
+
         save_button = QPushButton("Save Image")
         save_button.clicked.connect(self.save_images)
         top_controls.addWidget(save_button)
 
-        # Reference image selection
         reference_layout = QHBoxLayout()
         reference_label = QLabel("Reference Image:")
-        reference_label.setScaledContents(True)
         self.reference_combo = QComboBox()
         self.reference_combo.currentIndexChanged.connect(self.set_reference_image)
         reference_layout.addWidget(reference_label)
         reference_layout.addWidget(self.reference_combo)
-        
+
         reference_group = QGroupBox("Reference Settings")
         reference_group.setLayout(reference_layout)
         top_controls.addWidget(reference_group)
-        
-        # Add new threshold range button
+
         add_range_button = QPushButton("Add Threshold Range")
         add_range_button.clicked.connect(self.add_threshold_range)
         top_controls.addWidget(add_range_button)
-        
-        # Navigation buttons
+
         prev_button = QPushButton("Previous Image")
         prev_button.clicked.connect(self.show_previous_image)
         next_button = QPushButton("Next Image")
         next_button.clicked.connect(self.show_next_image)
         top_controls.addWidget(prev_button)
         top_controls.addWidget(next_button)
-        
-        # Intensity range label
+
         self.intensity_range_label = QLabel(f"Image Intensity Range: [{self.intensity_min}, {self.intensity_max}]")
         top_controls.addWidget(self.intensity_range_label)
-        
-        main_layout.addLayout(top_controls)
-        
-        # Create threshold control groups
-        threshold_controls = QVBoxLayout()
-        for i, threshold_range in enumerate(self.threshold_ranges):
-            group = self.create_threshold_group(i, threshold_range)
-            threshold_controls.addWidget(group)
-        
-        # Add threshold controls to a scrollable area
-        threshold_scroll = QScrollArea()
-        threshold_scroll.setWidgetResizable(True)
-        threshold_container = QWidget()
-        threshold_container.setLayout(threshold_controls)
-        threshold_scroll.setWidget(threshold_container)
-        
-        # Image display area
-        #self.image_scroll_area1 = QScrollArea()
-        #self.image_scroll_area1 = QScrollArea()
-        #self.image_scroll_area1 = QLabel("Load a .tif or .tiff image to begin (may be slow with large images)")
-        #self.image_scroll_area2 = QLabel()
-        #self.image_scroll_area1.setScaledContents(True)
-        #self.image_scroll_area1.setAlignment(Qt.AlignCenter)
-        #self.image_scroll_area2.setWidgetResizable(True)
-        #self.image_scroll_area2.setScaledContents(True)
-        #self.image_scroll_area2.setAlignment(Qt.AlignCenter)
-        
-        #self.image_display1 = QLabel("Load a .tif or .tiff image to begin (may be slow with large images)")
-        #self.image_display1.setAlignment(Qt.AlignCenter)
-        #self.image_display2 = QLabel()
-        #self.image_display2.setAlignment(Qt.AlignCenter)
-        #self.image_scroll_area1.setWidget(self.image_display1)
-        #self.image_scroll_area2.setWidget(self.image_display2)
 
-        self.image_plot = MatplotlibImageWidget()
-        
-        
-        
+        # Display range controls (add before layout is finalized!)
         display_range_group = QGroupBox("Display Range")
         display_range_layout = QHBoxLayout()
 
         min_range_label = QLabel("Min:")
         self.min_range_spinbox = QDoubleSpinBox()
-        self.min_range_spinbox.setRange(-1000000, 1000000)  # Wide range to accommodate various image types
+        self.min_range_spinbox.setRange(-1000000, 1000000)
         self.min_range_spinbox.setDecimals(2)
         self.min_range_spinbox.setKeyboardTracking(False)
         self.min_range_spinbox.valueChanged.connect(self.on_display_range_changed)
@@ -334,38 +293,36 @@ class ImageThresholdAdjuster(QMainWindow):
 
         display_range_group.setLayout(display_range_layout)
         top_controls.addWidget(display_range_group)
-            
-        
-        # Create histogram canvas
-        self.histogram_canvas = HistogramCanvas()
-        
-        # Create a vertical layout for image and histogram
-        image_layout = QVBoxLayout()
-        #image_layout.addWidget(self.image_scroll_area1, 3)  # ratio
-        image_layout.addWidget(self.image_plot,3)
-        #image_layout.addWidget(self.image_scroll_area2,3)
-        #image_layout.addWidget(self.image_display2,3)
-        image_layout.addWidget(self.histogram_canvas, 3)
 
-        
-        
-        
-        # Create image display widget
+        main_layout.addLayout(top_controls)
+
+        # --- Threshold Controls Row ---
+        threshold_control_layout = QHBoxLayout()
+        for i, threshold_range in enumerate(self.threshold_ranges):
+            group = self.create_threshold_group(i, threshold_range)
+            threshold_control_layout.addWidget(group)
+
+        threshold_scroll = QScrollArea()
+        threshold_scroll.setWidgetResizable(True)
+        threshold_container = QWidget()
+        threshold_container.setLayout(threshold_control_layout)
+        threshold_scroll.setWidget(threshold_container)
+
+        main_layout.addWidget(threshold_scroll, stretch=0)
+
+        # --- Image and Histogram Display ---
+        self.image_plot = MatplotlibImageWidget()
+        self.histogram_canvas = HistogramCanvas()
+
+        image_layout = QVBoxLayout()
+        image_layout.addWidget(self.image_plot, stretch=3)
+        image_layout.addWidget(self.histogram_canvas, stretch=1)
+
         image_display_widget = QWidget()
         image_display_widget.setLayout(image_layout)
-        
-        # Create a horizontal layout for threshold controls and image display
-        h_layout = QHBoxLayout()
-        h_layout.addWidget(threshold_scroll, 1)  # 1:3 ratio
-        h_layout.addWidget(image_display_widget, 3)
-        
-        main_layout.addLayout(h_layout)
-        
-        # Set up the layout
-        main_widget.setLayout(main_layout)
-        self.setCentralWidget(main_widget)
-        
-        # Status bar for information
+        main_layout.addWidget(image_display_widget, stretch=1)
+
+        # Status bar
         self.statusBar().showMessage("Ready")
 
     
@@ -430,7 +387,7 @@ class ImageThresholdAdjuster(QMainWindow):
         
         """Create UI controls for a threshold range"""
         group = QGroupBox(threshold_range.name)
-        group_layout = QVBoxLayout()
+        group_layout = QHBoxLayout()
         
         # Enable/disable checkbox
         enable_checkbox = QCheckBox("Enable")
