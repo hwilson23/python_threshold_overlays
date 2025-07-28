@@ -50,12 +50,14 @@ class HistogramCanvas(FigureCanvas):
             #hist, bins = np.histogram(~np.isnan(img.flatten()), bins,density=True)
             nanpos = np.isnan(img.flatten())
             #hist, bins,_ = matplotlib.pyplot.hist(img.flatten()[~nanpos],histtype='bar',facecolor='gray')
-            hist, bins = np.histogram(img.flatten()[~nanpos],bins)
+            pct = np.nanpercentile(img.flatten()[~nanpos],99)
+            nonnanimg = img.flatten()[~nanpos]
+            hist, bins = np.histogram(nonnanimg[nonnanimg<=pct],bins)
                         
             #self.axes.bar(bins[:-1], hist, width=bins[1]-bins[0], color='gray', edgecolor = 'black')
             bin_centers = (bins[:-1]+bins[1:])/2
             self.axes.bar(bin_centers, hist, width=bins[1]-bins[0], color='gray', edgecolor = 'black')
-            self.axes.set_title('REFERENCE Image Histogram')
+            self.axes.set_title('REFERENCE Image Histogram - display to 99th percentile')
             self.axes.set_xlabel('Pixel Value')
             self.axes.set_ylabel('Count')
             
