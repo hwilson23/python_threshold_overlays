@@ -103,7 +103,7 @@ class MatplotlibImageWidget(QWidget):
         # Display RGB image (left subplot - image_display1 equivalent)
         self.ax1.imshow(rgb_image)
 
-        wrapped_filename_rgb = "\n".join(textwrap.wrap(f'RGB: {filename}',width=40))
+        wrapped_filename_rgb = "\n".join(textwrap.wrap(f'Mask: {filename}',width=40))
         self.ax1.set_title(wrapped_filename_rgb)
         self.ax1.axis('off')
         
@@ -876,7 +876,10 @@ class ImageThresholdAdjuster(QMainWindow):
         blended = np.zeros_like(img_rgb)
         cv2.addWeighted(img_rgb, 1 - alpha, overlay, alpha, 0, blended)
         
-        return blended
+        
+        #return blended
+        return overlay
+    
 
     def process_image(self, img_data):
         """Process the image by applying colored overlays based on reference masks"""
@@ -931,7 +934,8 @@ class ImageThresholdAdjuster(QMainWindow):
         blended = np.zeros_like(img_rgb)
         cv2.addWeighted(img_rgb, 1 - alpha, overlay, alpha, 0, blended)
         
-        return blended
+        #return blended
+        return overlay
     
     def process_current_image(self):
         if not self.images or self.current_image_index < 0:
