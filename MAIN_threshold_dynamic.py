@@ -6,6 +6,7 @@ import matplotlib.pyplot
 matplotlib.use('Qt5Agg')
 import os
 import textwrap
+
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT
 from matplotlib.figure import Figure
@@ -501,6 +502,8 @@ class ImageThresholdAdjuster(QMainWindow):
             try:
                 # Load the image with original intensity values
                 img = tiff.imread(file_path)
+                
+                
                 if img is None:
                     self.statusBar().showMessage(f"Failed to load {file_path}")
                     continue
@@ -546,6 +549,7 @@ class ImageThresholdAdjuster(QMainWindow):
                 })
             except Exception as e:
                 self.statusBar().showMessage(f"Error loading {file_path}: {str(e)}")
+                pass
         
         if self.images:
             # Update reference image dropdown
